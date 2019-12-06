@@ -1,0 +1,94 @@
+
+## Import modules
+
+import pandas as pd
+import numpy as np
+import re
+import pandas.io.sql
+import pyodbc
+import xlrd
+import os
+import pathlib
+
+# connect to DB
+
+server = "******"
+db = "PRIVIA_PersonDatabase"
+conn = pyodbc.connect('DRIVER={SQL Server};'
+                      'SERVER="******;'
+                      'DATABASE="PRIVIA_PersonDatabase";'
+                      'Trusted_Connection=yes;')
+
+# Get XLSX file from folder in orde to process different files in similar format.
+
+for xlsx_file in pathlib.Path('C:\Projects\privia').glob('*.xlsx'):
+    Filename = os.path.basename(xlsx_file)
+    FileDate = Filename[len(Filename)-11:len(Filename)-5]
+    GroupName = Filename[0:len(Filename)-11]
+    
+    
+cursor = conn.cursor()
+InPutFile = xlrd.open_workbook("xlsx_file")
+sheet = InputFile.sheet_by_name("Sheet1")
+
+# Create Table Query
+
+query1 = """
+CREATE TABLE [PRIVIA_PersonDatabase.dbo.Demographics] 
+        (ID varchar (255)
+        ,First_Name varchar (255)
+        ,Middle_Name varchar (255)
+        ,Last_Name varchar (255
+        ,DOB datetime
+        ,Sex varchar (10)
+        ,Favorite_Color varchar (255)
+        ,Provider_Group varchar (255)
+        ,FileDate datetime
+)"""
+
+# Insert Query
+        
+query2 = """
+INSERT INTO [PRIVIA_PersonDatabase.dbo.Demographics] 
+    (ID
+    ,First_Name
+    ,Substring(Middle_Name,1,1)
+    ,Last_Name
+    ,DOB
+    ,CASE 
+        WHEN Sex = '0" THEN 'M'
+        WHEN Sex = '1' THEN 'F"
+     END
+    ,Favorite_Color
+    ,Provider_Group
+    ,FileDate
+) VALUES (?,?,?,?,?,?,?,?,?)"""
+    
+ #       
+try:
+    cursor.execute(query1)
+    conn.commit()
+except pyodbc.ProgrammingError:
+    pass
+    
+
+# Read Excel and Insert
+    
+for row in range(5, sheet.nrows):
+    ID = sheet.cell(row,1).value
+    FirstName = sheet.cell(row,2).value
+    MiddleName = sheet.cell(row,3).value
+    LastName = sheet.cell(row,4).value
+    DOB = sheet.cell(row,5).value
+    Sex = sheet.cell(row,6).value
+    FavoriteColor = sheet.cell(row,7).value
+    ProviderGroup = GroupName
+    FileDate = FileDate
+    
+    values = (ID, FirstName, MiddleName, LastName, DOB, Sex, FavoriteColor, ProviderGroup, FileDate)
+    
+    cursor.execute(query2, values)
+
+# close connection
+conn.commit
+conn.close

@@ -1,0 +1,120 @@
+
+
+# Import modules
+
+import pandas as pd
+import numpy as np
+import pandas.io.sql
+import pyodbc
+import xlrd
+import os
+import pathlib
+
+# connect to DB
+
+server = "******"
+db = "PRIVIA_PersonDatabase"
+conn = pyodbc.connect('DRIVER={SQL Server};'
+                      'SERVER="***********";'
+                      'DATABASE="PRIVIA_PersonDatabase";'
+                      'Trusted_Connection=yes;')
+
+# Get XLSX file from folder in orde to process different files in similar format.
+
+for xlsx_file in pathlib.Path('C:\Projects\privia').glob('*.xlsx'):
+    Filename = os.path.basename(xlsx_file)
+    FileDate = Filename[len(Filename)-11:len(Filename)-5]
+    GroupName = Filename[0:len(Filename)-11]
+    
+    
+cursor = conn.cursor()
+InPutFile = xlrd.open_workbook("xlsx_file")
+sheet = InputFile.sheet_by_name("Sheet1")
+
+# Create Table Query
+
+query1 = """
+CREATE TABLE [PRIVIA_PersonDatabase.dbo.Risk] 
+        (ID varchar (255)
+        ,Attributed1 varchar (255)
+        ,Attributed2 varchar (255)
+        ,RiskQ1 varchar (255)
+        ,RiskQ2 varchar (255)
+        ,RiskIncreasedFlag varchar (10)
+        ,Provider_Group varchar (255)
+        ,FileDate datetime
+)"""
+
+# Insert Query
+        
+query2 = """
+INSERT INTO [PRIVIA_PersonDatabase.dbo.Risk] 
+    (ID
+    ,Attributed1
+    ,Attributed2
+    ,RiskQ1
+    ,RiskQ12
+    ,RiskIncreasedFlag
+    ,Provider_Group
+    ,FileDate
+) VALUES (?,?,?,?,?,?,?,?)"""
+    
+ #       
+try:
+    cursor.execute(query1)
+    conn.commit()
+except pyodbc.ProgrammingError:
+    pass
+    
+
+# Read Excel and Insert
+    
+for row in range(5, sheet.nrows):
+    ID = sheet.cell(row,1).value
+    Attributed1 = sheet.cell(row,8).value
+    Attributed2 = sheet.cell(row,9).value
+    RiskQ1 = sheet.cell(row,10).value
+    RiskQ2 = sheet.cell(row,11).value
+    RiskIncreasedFlag = sheet.cell(row,12).value
+    ProviderGroup = GroupName
+    FileDate = FileDate
+    
+    values = (ID, Attributed1, Attributed2, RiskQ1, RiskQ2, RiskIncreasedFlag, ProviderGroup, FileDate)
+    
+    cursor.execute(query2, values)
+
+
+# Read data fron table
+    
+query3 = pd.read_sql_query(
+"""SELECT 
+ID
+,Attributed1
+,Attributed2
+,RiskQ1
+,RiskQ2
+,RiskIncreasedFlag
+,ProviderGroup
+,FileDate
+FROM Risk where RiskIncreasedFlag='YES' """,conn)
+
+# Assign to dataframe
+
+df = pd.DataFrame(query3, columns=['ID','Attributed1', 'Attributed2', 'RiskQ1', 'RiskQ2', 'RiskIncreasedFlag', 'ProviderGroup', 'FileDate'])
+
+# Unpivot and concatenate
+
+df1=pd.melt(df, id_vars=['ID','RiskIncreasedFlag','FileDate'], value_vars =['Attributed1','Attributed2'],
+                            var_name='Attribution',value_name='Attribution_Value')
+print(df1)
+
+df2=pd.melt(df, id_vars=['ID'], value_vars =['RiskQ1','RiskQ2'],
+                            var_name='Risk_Quarter',value_name='Risk_Value')
+print(df2)
+
+
+result = pd.concat([df1,df2],axis=1,  join ='inner')
+print(result)
+# close connection
+conn.commit
+conn.close
